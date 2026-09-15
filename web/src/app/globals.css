@@ -1,0 +1,112 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: #f5f5f7;
+  --foreground: #1c1c1f;
+  --card: #ffffff;
+  --card-foreground: #1c1c1f;
+  --popover: #ffffff;
+  --popover-foreground: #1c1c1f;
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --secondary: #fafafa;
+  --secondary-foreground: #1c1c1f;
+  --muted: #fafafa;
+  --muted-foreground: #6b6b73;
+  --accent: #eef0fd;
+  --accent-foreground: #1c1c1f;
+  --destructive: #b3261e;
+  --success: #15803d;
+  --success-foreground: #ffffff;
+  --border: #e5e5e8;
+  --input: #e5e5e8;
+  --ring: #4f46e5;
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: #131316;
+  --foreground: #ececef;
+  --card: #1c1c20;
+  --card-foreground: #ececef;
+  --popover: #1c1c20;
+  --popover-foreground: #ececef;
+  --primary: #8b83f7;
+  --primary-foreground: #ffffff;
+  --secondary: #202024;
+  --secondary-foreground: #ececef;
+  --muted: #202024;
+  --muted-foreground: #97979f;
+  --accent: #262244;
+  --accent-foreground: #ececef;
+  --destructive: #f87171;
+  --success: #4ade80;
+  --success-foreground: #0b1f13;
+  --border: #2c2c32;
+  --input: #2c2c32;
+  --ring: #8b83f7;
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}
+
+/* App shell: fills the viewport and avoids a page-level scrollbar in the
+   common case — the contacts table scrolls internally instead. If a
+   viewport is genuinely too short (e.g. a tiny window with the collect log
+   expanded), the shell can still scroll as a fallback rather than clipping
+   content with no way to reach it. */
+.app-shell {
+  height: 100dvh;
+  overflow-y: auto;
+}
+
+/* Horizontal-scrolling chip row (used for the "top countries" summary) —
+   no Tailwind utility covers a thin custom scrollbar out of the box. */
+.chips-scroll::-webkit-scrollbar {
+  height: 4px;
+}

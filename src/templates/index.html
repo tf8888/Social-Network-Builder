@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GitHub Contacts — Collector Dashboard</title>
+<style>
+  :root {
+    --bg: #f7f7f8;
+    --surface: #ffffff;
+    --border: #e3e3e6;
+    --text: #1c1c1f;
+    --muted: #6b6b73;
+    --accent: #4f46e5;
+    --accent-bg: #eef0fd;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #16161a;
+      --surface: #1f1f24;
+      --border: #303038;
+      --text: #eaeaee;
+      --muted: #9a9aa2;
+      --accent: #8b83f7;
+      --accent-bg: #262244;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding: 24px 16px 48px;
+  }
+  .wrap { max-width: 1080px; margin: 0 auto; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  .subtitle { color: var(--muted); font-size: 0.9rem; margin-bottom: 20px; }
+  .banner {
+    background: var(--accent-bg);
+    color: var(--accent);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.82rem;
+    margin-bottom: 20px;
+    line-height: 1.4;
+  }
+  .stats {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px 18px;
+    min-width: 140px;
+  }
+  .stat-card .n { font-size: 1.5rem; font-weight: 600; }
+  .stat-card .l { color: var(--muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: .04em; }
+  .countries { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .chip {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 3px 10px;
+    font-size: 0.78rem;
+    color: var(--muted);
+  }
+  form.filters {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  input[type=text] {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 0.9rem;
+    flex: 1 1 200px;
+  }
+  button, .btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 8px 16px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+  }
+  .table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--surface);
+  }
+  table { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
+  th, td {
+    text-align: left;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  th { color: var(--muted); font-weight: 600; font-size: 0.75rem; text-transform: uppercase; letter-spacing: .03em; }
+  tr:last-child td { border-bottom: none; }
+  a.link { color: var(--accent); text-decoration: none; }
+  .empty { padding: 40px; text-align: center; color: var(--muted); }
+  .pagination { display: flex; gap: 8px; align-items: center; margin-top: 16px; justify-content: center; font-size: 0.85rem; color: var(--muted); }
+  .pagination a { color: var(--accent); text-decoration: none; }
+  .pagination .disabled { opacity: 0.35; pointer-events: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>GitHub Contacts</h1>
+  <div class="subtitle">Portfolio ETL demo &mdash; local, read-only view of collected profiles</div>
+
+  <div class="banner">
+    Data shown here is scraped, self-disclosed public profile info. This
+    page is for local/private use only &mdash; don't deploy it publicly or
+    share screenshots containing real emails.
+  </div>
+
+  <div class="stats">
+    <div class="stat-card"><div class="n">{{ total_all }}</div><div class="l">Total contacts</div></div>
+    <div class="stat-card"><div class="n">{{ total_matching }}</div><div class="l">Matching filter</div></div>
+    <div class="stat-card">
+      <div class="l">Top countries</div>
+      <div class="countries">
+        {% for name, count in top_countries %}
+          <span class="chip">{{ name }} &middot; {{ count }}</span>
+        {% else %}
+          <span class="chip">no data yet</span>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <form class="filters" method="get">
+    <input type="text" name="q" placeholder="Search username, name, or email" value="{{ q }}">
+    <input type="text" name="country" placeholder="Filter by country" value="{{ country }}">
+    <button type="submit">Filter</button>
+    {% if q or country %}<a class="btn" href="/" style="background:var(--muted)">Clear</a>{% endif %}
+  </form>
+
+  <div class="table-wrap">
+    {% if rows %}
+    <table>
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Name</th>
+          <th>Email</th>
+          <th>Country</th>
+          <th>Portfolio</th>
+          <th>Company</th>
+          <th>Repos</th>
+          <th>Followers</th>
+          <th>GH Exp (yrs)</th>
+          <th>Keyword</th>
+          <th>Collected</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr>
+          <td><a class="link" href="https://github.com/{{ r.username }}" target="_blank" rel="noopener">{{ r.username }}</a></td>
+          <td>{{ r.name or "—" }}</td>
+          <td>{{ r.email or "—" }}</td>
+          <td>{{ r.country or "—" }}</td>
+          <td>{% if r.portfolio_url %}<a class="link" href="{{ r.portfolio_url }}" target="_blank" rel="noopener">link</a>{% else %}—{% endif %}</td>
+          <td>{{ r.company or "—" }}</td>
+          <td>{{ r.public_repos if r.public_repos is not none else "—" }}</td>
+          <td>{{ r.followers if r.followers is not none else "—" }}</td>
+          <td>{{ r.github_experience_years if r.github_experience_years is not none else "—" }}</td>
+          <td>{{ r.search_keyword or "—" }}</td>
+          <td>{{ r.collected_at[:10] if r.collected_at else "—" }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty">No contacts match this filter yet.</div>
+    {% endif %}
+  </div>
+
+  <div class="pagination">
+    <a href="?q={{ q }}&country={{ country }}&page={{ page - 1 }}" class="{{ 'disabled' if page <= 1 else '' }}">&larr; Prev</a>
+    <span>Page {{ page }} of {{ total_pages }}</span>
+    <a href="?q={{ q }}&country={{ country }}&page={{ page + 1 }}" class="{{ 'disabled' if page >= total_pages else '' }}">Next &rarr;</a>
+  </div>
+</div>
+</body>
+</html>
