@@ -21,6 +21,7 @@ import {
   Loader2,
   Mail,
   Search,
+  Sparkles,
 } from "lucide-react";
 
 const LIST_PAGE_SIZE = 20;
@@ -65,6 +66,11 @@ export default function SendEmailModal({ onFinished }: { onFinished: () => void 
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
   const [prefilledFrom, setPrefilledFrom] = useState(false);
+
+  // AI draft generation (Gemini)
+  const [topicInput, setTopicInput] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
 
   // Send run
   const [sendStatus, setSendStatus] = useState<SendStatus>("idle");
@@ -287,6 +293,42 @@ export default function SendEmailModal({ onFinished }: { onFinished: () => void 
     abortRef.current?.abort();
   }
 
+  async function handleGenerate() {
+    if (!topicInput.trim() || generating) return;
+    setGenerating(true);
+    setGenerateError(null);
+    try {
+      const firstSelected = selected.values().next().value;
+      const resp = await fetch("/api/email/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          topic: topicInput.trim(),
+          contact: firstSelected
+            ? {
+                username: firstSelected.username,
+                name: firstSelected.name,
+                company: firstSelected.company,
+                country: firstSelected.country,
+                bio: firstSelected.bio,
+              }
+            : null,
+        }),
+      });
+      const json = await resp.json();
+      if (!resp.ok) {
+        setGenerateError(json.error ?? "Failed to generate draft.");
+        return;
+      }
+      setSubject(json.subject ?? "");
+      setMessage(json.message ?? "");
+    } catch {
+      setGenerateError("Connection lost while generating.");
+    } finally {
+      setGenerating(false);
+    }
+  }
+
   const progressPct = progress.total > 0 ? Math.round(((progress.sent + progress.failed) / progress.total) * 100) : 0;
 
   return (
@@ -401,6 +443,33 @@ export default function SendEmailModal({ onFinished }: { onFinished: () => void 
       </div>
 
       <form onSubmit={handleSend} className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1.5 rounded-lg border bg-muted/30 p-3">
+          <Label htmlFor="ai-topic">Generate with AI</Label>
+          <div className="flex gap-2">
+            <Input
+              id="ai-topic"
+              value={topicInput}
+              onChange={(e) => setTopicInput(e.target.value)}
+              placeholder="What's this email about? e.g. invite them to try our open-source SDK"
+              disabled={running || generating}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              disabled={running || generating || !topicInput.trim()}
+              onClick={handleGenerate}
+            >
+              {generating ? <Loader2 className="animate-spin" size={15} /> : <Sparkles size={14} />}
+              Generate
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {selected.size > 0
+              ? `Personalizes using ${[...selected.values()][0].username}'s profile, then fills in the subject and message below.`
+              : "Select a contact above to personalize the draft, or generate a generic one."}
+          </p>
+          {generateError && <p className="text-xs text-destructive">{generateError}</p>}
+        </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="send-from">Sender email</Label>
           <Input

@@ -49,3 +49,9 @@ export const EMAIL_HARD_MAX_RECIPIENTS = 100;
 export function getResendApiKey(): string | null {
   return process.env.RESEND_API_KEY?.trim() || null;
 }
+
+// AI email drafting (Gemini). Optional, same pattern as Resend above — only
+// the generate-draft route needs it, and it checks for it itself.
+export function getGeminiApiKey(): string | null {
+  return process.env.GEMINI_API_KEY?.trim() || null;
+}
