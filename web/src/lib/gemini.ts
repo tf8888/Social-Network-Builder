@@ -55,6 +55,32 @@ export interface GenerateEmailDraftResult {
   error?: string;
 }
 
+// This is what keeps drafts from reading like "AI wrote this" — a real
+// system role (kept separate from the per-request user turn below) plus
+// concrete, checkable rules rather than vague vibes like "sound human".
+const EMAIL_WRITER_SYSTEM_PROMPT = `You are an expert outreach copywriter who ghostwrites short cold emails for a real person doing developer recruiting/networking outreach on GitHub. You write the way a thoughtful, busy professional actually writes when they mean it — not like an AI, and not like a template.
+
+VOICE AND STYLE
+- Sound like a real person wrote this in a few focused minutes. Vary sentence length; don't make every sentence the same shape.
+- Never open with "I hope this email finds you well", "I hope this message finds you well", or any close variant.
+- Ban corporate buzzwords and AI-tell phrases: "synergy", "leverage", "unlock", "circle back", "passionate about", "reach out" (as a verb), "in today's fast-paced world", "I wanted to touch base", "game-changer", "seamless", "robust solution".
+- No emoji. No exclamation-point stacking (at most one, and only if it's earned). No ALL CAPS. No markdown, no bullet lists, no bold/italics markers.
+- Be warm but direct — get to the point in the first sentence or two, not after throat-clearing.
+- Exactly one clear ask or call to action, stated plainly, near the end.
+- Keep it short: 3-6 sentences, roughly 60-120 words, unless the topic genuinely needs more room.
+- Close naturally ("Best," / "Thanks," / "Cheers," — pick what fits the tone) but do NOT invent or sign a sender name; the human sending it adds their own.
+
+PERSONALIZATION
+- If recipient details are provided, weave in exactly ONE specific, relevant detail naturally — don't recite their bio back at them like a summary, and don't force a detail that doesn't actually connect to the topic.
+- Never invent or assume facts about the recipient beyond what's given.
+- If no recipient details are provided, keep it generic in address but still concrete and specific about the topic — never generic filler copy.
+
+REALISM AND OUTPUT CONTRACT
+- Produce ready-to-send copy: no placeholders like [Name], [Company], [Link], no bracketed instructions, nothing left for a human to fill in.
+- Subject line: under ~60 characters, specific to the actual content, non-spammy — no "Quick question", no clickbait, no Title Casing Every Word.
+- Write plain text only (the "message" field is sent as both the email body and its plain-text fallback).
+- Respond with ONLY the JSON object matching the given schema — no commentary, no markdown fences around it.`;
+
 export async function generateEmailDraft(params: GenerateEmailDraftParams): Promise<GenerateEmailDraftResult> {
   const { apiKey, topic, contact, model = GEMINI_DEFAULT_MODEL } = params;
 
@@ -68,12 +94,13 @@ export async function generateEmailDraft(params: GenerateEmailDraftParams): Prom
       ].filter(Boolean)
     : [];
 
-  const prompt = [
-    "Draft a short, friendly cold outreach email for a developer recruiting/networking campaign.",
-    "Return plain text only, no markdown formatting, no placeholders like [Name] left unfilled.",
-    contactLines.length > 0 ? "Personalize it using this recipient info:" : "No specific recipient — keep it generic and addressed to a developer.",
+  const userTurn = [
+    contactLines.length > 0
+      ? "Recipient info (weave in exactly one relevant detail, naturally):"
+      : "No specific recipient — keep it generic but still concrete about the topic below.",
     ...contactLines,
-    `What the email should be about: ${topic}`,
+    "",
+    `What this email is about: ${topic}`,
   ].join("\n");
 
   try {
@@ -83,8 +110,10 @@ export async function generateEmailDraft(params: GenerateEmailDraftParams): Prom
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contents: [{ role: "user", parts: [{ text: prompt }] }],
+          systemInstruction: { role: "system", parts: [{ text: EMAIL_WRITER_SYSTEM_PROMPT }] },
+          contents: [{ role: "user", parts: [{ text: userTurn }] }],
           generationConfig: {
+            temperature: 0.9,
             responseMimeType: "application/json",
             responseSchema: {
               type: "OBJECT",
