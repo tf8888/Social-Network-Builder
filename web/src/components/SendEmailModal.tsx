@@ -267,33 +267,47 @@ export default function SendEmailModal({
             {localRecipients.length} recipient{localRecipients.length === 1 ? "" : "s"}
           </span>
         </div>
-        <ScrollArea className="max-h-[180px]">
-          <div className="divide-y">
-            {localRecipients.length === 0 && (
+        {(() => {
+          const rows =
+            localRecipients.length === 0 ? (
               <div className="px-3 py-6 text-center text-sm text-muted-foreground">
                 No recipients left — close this and reselect contacts to send.
               </div>
-            )}
-            {localRecipients.map((r) => (
-              <div key={r.id} className="flex items-center gap-2.5 px-3 py-2 text-sm">
-                <ContactAvatar url={r.avatar_url} name={r.name || r.username} />
-                <span className="font-medium">{r.username}</span>
-                <span className="min-w-0 flex-1 truncate text-muted-foreground">{r.email}</span>
-                {r.country && <span className="hidden shrink-0 text-muted-foreground sm:inline">{r.country}</span>}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon-xs"
-                  title="Remove from this send"
-                  disabled={running}
-                  onClick={() => removeRecipient(r.id)}
-                >
-                  <X size={13} />
-                </Button>
-              </div>
-            ))}
-          </div>
-        </ScrollArea>
+            ) : (
+              localRecipients.map((r) => (
+                <div key={r.id} className="flex items-center gap-2.5 px-3 py-2 text-sm">
+                  <ContactAvatar url={r.avatar_url} name={r.name || r.username} />
+                  <span className="font-medium">{r.username}</span>
+                  <span className="min-w-0 flex-1 truncate text-muted-foreground">{r.email}</span>
+                  {r.country && <span className="hidden shrink-0 text-muted-foreground sm:inline">{r.country}</span>}
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    title="Remove from this send"
+                    disabled={running}
+                    onClick={() => removeRecipient(r.id)}
+                  >
+                    <X size={13} />
+                  </Button>
+                </div>
+              ))
+            );
+
+          // Base UI's ScrollArea viewport needs a *definite* height to
+          // actually constrain and scroll — max-height alone leaves it
+          // sized to content, so the list spills over the rest of the form
+          // instead of scrolling. Only pay that fixed-height cost (and the
+          // empty space it leaves for a short list) once there's enough
+          // recipients to actually need scrolling.
+          return localRecipients.length > 6 ? (
+            <ScrollArea className="h-[220px]">
+              <div className="divide-y">{rows}</div>
+            </ScrollArea>
+          ) : (
+            <div className="divide-y">{rows}</div>
+          );
+        })()}
       </div>
 
       <form onSubmit={handleSend} className="flex flex-col gap-3">
