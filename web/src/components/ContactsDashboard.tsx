@@ -42,6 +42,15 @@ const EMAIL_STATUS_BADGE: Record<EmailStatus, { label: string; className: string
   failed: { label: "Failed", className: "border-destructive/30 bg-destructive/10 text-destructive" },
 };
 
+type StatusFilter = "" | EmailStatus;
+
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: "", label: "All" },
+  { value: "not_sent", label: "New" },
+  { value: "sent", label: "Sent" },
+  { value: "failed", label: "Failed" },
+];
+
 function useDebounced<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value);
   useEffect(() => {
@@ -95,6 +104,7 @@ export default function ContactsDashboard() {
   const [countryInput, setCountryInput] = useState("");
   const q = useDebounced(qInput, 350);
   const country = useDebounced(countryInput, 350);
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
   const [page, setPage] = useState(1);
   const [data, setData] = useState<ContactsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,7 +120,7 @@ export default function ContactsDashboard() {
   // Reset to page 1 whenever the filter changes, adjusted during render
   // rather than in an effect (React's documented pattern for "resetting
   // state when an input changes") — avoids an extra render-then-fetch cycle.
-  const filterKey = `${q}::${country}`;
+  const filterKey = `${q}::${country}::${statusFilter}`;
   const [lastFilterKey, setLastFilterKey] = useState(filterKey);
   if (filterKey !== lastFilterKey) {
     setLastFilterKey(filterKey);
@@ -139,6 +149,7 @@ export default function ContactsDashboard() {
     const params = new URLSearchParams({ page: String(page) });
     if (q) params.set("q", q);
     if (country) params.set("country", country);
+    if (statusFilter) params.set("emailStatus", statusFilter);
 
     fetch(`/api/contacts?${params.toString()}`)
       .then((resp) => {
@@ -159,10 +170,10 @@ export default function ContactsDashboard() {
     return () => {
       ignore = true;
     };
-  }, [q, country, page, reloadToken]);
+  }, [q, country, statusFilter, page, reloadToken]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const hasFilter = Boolean(qInput || countryInput);
+  const hasFilter = Boolean(qInput || countryInput || statusFilter);
   const rows = data?.rows ?? [];
   const allOnPageSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
 
@@ -285,6 +296,19 @@ export default function ContactsDashboard() {
               onChange={(e) => setCountryInput(e.target.value)}
             />
           </div>
+          <div className="flex gap-1">
+            {STATUS_FILTERS.map((f) => (
+              <Button
+                key={f.value || "all"}
+                type="button"
+                size="sm"
+                variant={statusFilter === f.value ? "default" : "outline"}
+                onClick={() => setStatusFilter(f.value)}
+              >
+                {f.label}
+              </Button>
+            ))}
+          </div>
           {hasFilter && (
             <Button
               type="button"
@@ -293,6 +317,7 @@ export default function ContactsDashboard() {
               onClick={() => {
                 setQInput("");
                 setCountryInput("");
+                setStatusFilter("");
               }}
             >
               <X size={13} /> Clear
