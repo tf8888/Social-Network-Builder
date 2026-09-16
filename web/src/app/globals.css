@@ -5,50 +5,50 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  --background: #f5f5f7;
-  --foreground: #1c1c1f;
+  --background: #f3ede0;
+  --foreground: #17282a;
   --card: #ffffff;
-  --card-foreground: #1c1c1f;
+  --card-foreground: #17282a;
   --popover: #ffffff;
-  --popover-foreground: #1c1c1f;
-  --primary: #4f46e5;
-  --primary-foreground: #ffffff;
-  --secondary: #fafafa;
-  --secondary-foreground: #1c1c1f;
-  --muted: #fafafa;
-  --muted-foreground: #6b6b73;
-  --accent: #eef0fd;
-  --accent-foreground: #1c1c1f;
-  --destructive: #b3261e;
-  --success: #15803d;
+  --popover-foreground: #17282a;
+  --primary: #1c3d3a;
+  --primary-foreground: #f6f1e4;
+  --secondary: #ece3d0;
+  --secondary-foreground: #17282a;
+  --muted: #ece3d0;
+  --muted-foreground: #6f6656;
+  --accent: #f4e3b2;
+  --accent-foreground: #1c3d3a;
+  --destructive: #ad3b23;
+  --success: #3f7d4f;
   --success-foreground: #ffffff;
-  --border: #e5e5e8;
-  --input: #e5e5e8;
-  --ring: #4f46e5;
-  --radius: 0.625rem;
+  --border: #e2d8c0;
+  --input: #e2d8c0;
+  --ring: #1c3d3a;
+  --radius: 0.75rem;
 }
 
 .dark {
-  --background: #131316;
-  --foreground: #ececef;
-  --card: #1c1c20;
-  --card-foreground: #ececef;
-  --popover: #1c1c20;
-  --popover-foreground: #ececef;
-  --primary: #8b83f7;
-  --primary-foreground: #ffffff;
-  --secondary: #202024;
-  --secondary-foreground: #ececef;
-  --muted: #202024;
-  --muted-foreground: #97979f;
-  --accent: #262244;
-  --accent-foreground: #ececef;
-  --destructive: #f87171;
-  --success: #4ade80;
-  --success-foreground: #0b1f13;
-  --border: #2c2c32;
-  --input: #2c2c32;
-  --ring: #8b83f7;
+  --background: #11201f;
+  --foreground: #ece4d2;
+  --card: #17302e;
+  --card-foreground: #ece4d2;
+  --popover: #17302e;
+  --popover-foreground: #ece4d2;
+  --primary: #7cb9ae;
+  --primary-foreground: #0d1e1c;
+  --secondary: #1d3937;
+  --secondary-foreground: #ece4d2;
+  --muted: #1d3937;
+  --muted-foreground: #a7b7b0;
+  --accent: #3a301c;
+  --accent-foreground: #f4e3b2;
+  --destructive: #f0836a;
+  --success: #6fbf82;
+  --success-foreground: #0c1f11;
+  --border: #274543;
+  --input: #274543;
+  --ring: #7cb9ae;
 }
 
 @theme inline {

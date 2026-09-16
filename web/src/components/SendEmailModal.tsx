@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   AlertTriangle,
   Check,
@@ -71,6 +72,9 @@ export default function SendEmailModal({ onFinished }: { onFinished: () => void 
   const [topicInput, setTopicInput] = useState("");
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [models, setModels] = useState<{ id: string; displayName: string }[]>([]);
+  const [selectedModel, setSelectedModel] = useState("");
+  const [modelsError, setModelsError] = useState<string | null>(null);
 
   // Send run
   const [sendStatus, setSendStatus] = useState<SendStatus>("idle");
@@ -98,6 +102,32 @@ export default function SendEmailModal({ onFinished }: { onFinished: () => void 
       })
       .catch(() => {
         if (!ignore) setDomainChecked(true);
+      });
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  // Look up which Gemini models this API key can actually use — model ids
+  // get renamed/deprecated on Google's side (see src/lib/gemini.ts), so this
+  // is more reliable than hardcoding a fixed list in the UI.
+  useEffect(() => {
+    let ignore = false;
+    fetch("/api/email/models")
+      .then((r) => r.json())
+      .then((json: { models?: { id: string; displayName: string }[]; defaultModel?: string; error?: string }) => {
+        if (ignore) return;
+        if (json.error) {
+          setModelsError(json.error);
+          return;
+        }
+        const list = json.models ?? [];
+        setModels(list);
+        const preferred = list.find((m) => m.id === json.defaultModel) ?? list[0];
+        if (preferred) setSelectedModel(preferred.id);
+      })
+      .catch(() => {
+        if (!ignore) setModelsError("Could not reach Gemini to list models.");
       });
     return () => {
       ignore = true;
@@ -304,6 +334,7 @@ export default function SendEmailModal({ onFinished }: { onFinished: () => void 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           topic: topicInput.trim(),
+          model: selectedModel || undefined,
           contact: firstSelected
             ? {
                 username: firstSelected.username,
@@ -444,7 +475,23 @@ export default function SendEmailModal({ onFinished }: { onFinished: () => void 
 
       <form onSubmit={handleSend} className="flex flex-col gap-3">
         <div className="flex flex-col gap-1.5 rounded-lg border bg-muted/30 p-3">
-          <Label htmlFor="ai-topic">Generate with AI</Label>
+          <div className="flex items-center justify-between gap-2">
+            <Label htmlFor="ai-topic">Generate with AI</Label>
+            {models.length > 0 && (
+              <Select value={selectedModel} onValueChange={(v) => setSelectedModel(v as string)} disabled={running || generating}>
+                <SelectTrigger size="sm" className="h-7 text-xs">
+                  <SelectValue placeholder="Model" />
+                </SelectTrigger>
+                <SelectContent>
+                  {models.map((m) => (
+                    <SelectItem key={m.id} value={m.id}>
+                      {m.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
           <div className="flex gap-2">
             <Input
               id="ai-topic"
@@ -468,6 +515,7 @@ export default function SendEmailModal({ onFinished }: { onFinished: () => void 
               ? `Personalizes using ${[...selected.values()][0].username}'s profile, then fills in the subject and message below.`
               : "Select a contact above to personalize the draft, or generate a generic one."}
           </p>
+          {modelsError && <p className="text-xs text-muted-foreground">Model list unavailable: {modelsError}</p>}
           {generateError && <p className="text-xs text-destructive">{generateError}</p>}
         </div>
         <div className="flex flex-col gap-1.5">

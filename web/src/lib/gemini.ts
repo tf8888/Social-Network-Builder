@@ -2,11 +2,44 @@
 // matching how src/lib/resend.ts and src/lib/github.ts talk to their APIs.
 
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta";
-const GEMINI_MODEL = "gemini-3.6-flash";
+export const GEMINI_DEFAULT_MODEL = "gemini-3.6-flash";
+
+export interface GeminiModel {
+  id: string;
+  displayName: string;
+}
+
+// Models get deprecated/renamed on Google's side fairly often (we hit this
+// mid-build: gemini-2.5-flash was sunset in favor of gemini-3.6-flash) — so
+// list what's actually available to this key instead of hardcoding options.
+export async function listGeminiModels(apiKey: string): Promise<{ models?: GeminiModel[]; error?: string }> {
+  try {
+    const resp = await fetch(`${GEMINI_API_BASE}/models?key=${encodeURIComponent(apiKey)}`);
+    const json = await resp.json().catch(() => ({}) as Record<string, unknown>);
+    if (!resp.ok) {
+      const message =
+        (typeof (json as { error?: { message?: string } }).error?.message === "string" &&
+          (json as { error?: { message?: string } }).error!.message) ||
+        `Gemini API error (${resp.status})`;
+      return { error: message };
+    }
+
+    const raw = (json as { models?: { name?: string; displayName?: string; supportedGenerationMethods?: string[] }[] })
+      .models ?? [];
+    const models = raw
+      .filter((m) => m.name?.startsWith("models/") && m.supportedGenerationMethods?.includes("generateContent"))
+      .map((m) => ({ id: m.name!.slice("models/".length), displayName: m.displayName || m.name!.slice("models/".length) }));
+
+    return { models };
+  } catch (err) {
+    return { error: (err as Error).message || "network error calling Gemini" };
+  }
+}
 
 export interface GenerateEmailDraftParams {
   apiKey: string;
   topic: string;
+  model?: string;
   contact?: {
     username: string;
     name?: string | null;
@@ -23,7 +56,7 @@ export interface GenerateEmailDraftResult {
 }
 
 export async function generateEmailDraft(params: GenerateEmailDraftParams): Promise<GenerateEmailDraftResult> {
-  const { apiKey, topic, contact } = params;
+  const { apiKey, topic, contact, model = GEMINI_DEFAULT_MODEL } = params;
 
   const contactLines = contact
     ? [
@@ -45,7 +78,7 @@ export async function generateEmailDraft(params: GenerateEmailDraftParams): Prom
 
   try {
     const resp = await fetch(
-      `${GEMINI_API_BASE}/models/${GEMINI_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      `${GEMINI_API_BASE}/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },

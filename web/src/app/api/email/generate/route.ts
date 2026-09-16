@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 interface GenerateBody {
   topic?: unknown;
   contact?: unknown;
+  model?: unknown;
 }
 
 export async function POST(req: NextRequest) {
@@ -17,10 +18,13 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "invalid JSON body" }, { status: 400 });
   }
 
-  const { topic, contact } = body;
+  const { topic, contact, model } = body;
 
   if (typeof topic !== "string" || !topic.trim()) {
     return Response.json({ error: "topic is required" }, { status: 400 });
+  }
+  if (model !== undefined && (typeof model !== "string" || !model.trim())) {
+    return Response.json({ error: "model must be a non-empty string" }, { status: 400 });
   }
 
   const apiKey = getGeminiApiKey();
@@ -50,6 +54,7 @@ export async function POST(req: NextRequest) {
     apiKey,
     topic: topic.trim(),
     contact: normalizedContact,
+    model: typeof model === "string" ? model.trim() : undefined,
   });
 
   if (result.error) {
