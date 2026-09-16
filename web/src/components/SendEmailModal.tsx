@@ -1,68 +1,41 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Contact, ContactsResponse, EmailStatus, SendEmailEvent } from "@/lib/types";
+import type { Contact, SendEmailEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import ContactAvatar from "./ContactAvatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import {
-  AlertTriangle,
-  Check,
-  ChevronLeft,
-  ChevronRight,
-  Loader2,
-  Mail,
-  Search,
-  Sparkles,
-} from "lucide-react";
-
-const LIST_PAGE_SIZE = 20;
-// Matches the server's EMAIL_HARD_MAX_RECIPIENTS (src/lib/config.ts) — kept
-// in sync manually since that constant is server-only.
-const MAX_RECIPIENTS = 100;
-
-type StatusFilter = "" | EmailStatus;
-
-const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
-  { value: "", label: "All" },
-  { value: "not_sent", label: "New" },
-  { value: "sent", label: "Sent" },
-  { value: "failed", label: "Failed" },
-];
-
-const STATUS_BADGE: Record<EmailStatus, { label: string; className: string }> = {
-  not_sent: { label: "New", className: "text-muted-foreground" },
-  sent: { label: "Sent", className: "border-success/30 bg-success/10 text-success" },
-  failed: { label: "Failed", className: "border-destructive/30 bg-destructive/10 text-destructive" },
-};
+import { AlertTriangle, Check, Loader2, Mail, Sparkles, X } from "lucide-react";
 
 type LogEntry = { kind: "sent" | "failed"; text: string };
 type SendStatus = "idle" | "running" | "done" | "error";
 
-export default function SendEmailModal({ onFinished }: { onFinished: () => void }) {
-  // Filters + contact picker
-  const [qInput, setQInput] = useState("");
-  const [countryInput, setCountryInput] = useState("");
-  const [statusFilter, setStatusFilter] = useState<StatusFilter>("");
-  const [page, setPage] = useState(1);
-  const [data, setData] = useState<ContactsResponse | null>(null);
-  const [listLoading, setListLoading] = useState(true);
-  const [selected, setSelected] = useState<Map<string, Contact>>(new Map());
+export default function SendEmailModal({
+  recipients,
+  onFinished,
+}: {
+  recipients: Contact[];
+  onFinished: () => void;
+}) {
+  // Recipients are chosen beforehand (dashboard selection, or a single row's
+  // "Send email" button) — this modal is compose-only. A local copy lets the
+  // user drop someone from this particular send without touching that
+  // upstream selection.
+  const [localRecipients, setLocalRecipients] = useState<Contact[]>(recipients);
 
   // Sender domain lookup
   const [domain, setDomain] = useState<string | null>(null);
   const [domainChecked, setDomainChecked] = useState(false);
 
   // Compose fields
+  const [senderName, setSenderName] = useState("");
   const [from, setFrom] = useState("");
   const [subject, setSubject] = useState("");
   const [message, setMessage] = useState("");
@@ -134,95 +107,10 @@ export default function SendEmailModal({ onFinished }: { onFinished: () => void 
     };
   }, []);
 
-  const q = qInput.trim();
-  const country = countryInput.trim();
-
-  // Same fetch-in-effect pattern (and same scoped lint disable) as
-  // ContactsDashboard's own contacts fetch — see the comment there.
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    let ignore = false;
-    setListLoading(true);
-    const params = new URLSearchParams({
-      page: String(page),
-      pageSize: String(LIST_PAGE_SIZE),
-      hasEmail: "true",
-    });
-    if (q) params.set("q", q);
-    if (country) params.set("country", country);
-    if (statusFilter) params.set("emailStatus", statusFilter);
-
-    fetch(`/api/contacts?${params.toString()}`)
-      .then((r) => r.json())
-      .then((json: ContactsResponse) => {
-        if (ignore) return;
-        setData(json);
-        setListLoading(false);
-      })
-      .catch(() => {
-        if (!ignore) setListLoading(false);
-      });
-
-    return () => {
-      ignore = true;
-    };
-  }, [q, country, statusFilter, page]);
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  // Reset to page 1 when a filter changes.
-  const filterKey = `${q}::${country}::${statusFilter}`;
-  const [lastFilterKey, setLastFilterKey] = useState(filterKey);
-  if (filterKey !== lastFilterKey) {
-    setLastFilterKey(filterKey);
-    setPage(1);
-  }
-
-  const rows = data?.rows ?? [];
-  const allOnPageSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
   const running = sendStatus === "running";
 
-  function toggleOne(contact: Contact) {
-    setSelected((s) => {
-      const next = new Map(s);
-      if (next.has(contact.id)) next.delete(contact.id);
-      else next.set(contact.id, contact);
-      return next;
-    });
-  }
-
-  function toggleAllOnPage() {
-    setSelected((s) => {
-      const next = new Map(s);
-      if (allOnPageSelected) {
-        rows.forEach((r) => next.delete(r.id));
-      } else {
-        rows.forEach((r) => next.set(r.id, r));
-      }
-      return next;
-    });
-  }
-
-  async function selectAllMatching() {
-    const params = new URLSearchParams({
-      page: "1",
-      pageSize: String(MAX_RECIPIENTS),
-      hasEmail: "true",
-    });
-    if (q) params.set("q", q);
-    if (country) params.set("country", country);
-    if (statusFilter) params.set("emailStatus", statusFilter);
-
-    const resp = await fetch(`/api/contacts?${params.toString()}`);
-    const json: ContactsResponse = await resp.json();
-    setSelected((s) => {
-      const next = new Map(s);
-      json.rows.forEach((r) => next.set(r.id, r));
-      return next;
-    });
-  }
-
-  function clearSelection() {
-    setSelected(new Map());
+  function removeRecipient(id: string) {
+    setLocalRecipients((r) => r.filter((c) => c.id !== id));
   }
 
   function pushLog(entry: LogEntry) {
@@ -263,9 +151,17 @@ export default function SendEmailModal({ onFinished }: { onFinished: () => void 
     }
   }
 
+  // "Name <email>" when a sender name is given (RFC 5322, what Resend
+  // expects for a display name) — just the bare address otherwise.
+  function composeFrom() {
+    const email = from.trim();
+    const name = senderName.trim();
+    return name ? `${name} <${email}>` : email;
+  }
+
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
-    if (selected.size === 0 || !subject.trim() || !message.trim() || !from.trim() || running) return;
+    if (localRecipients.length === 0 || !subject.trim() || !message.trim() || !from.trim() || running) return;
 
     setLog([]);
     setSummary(null);
@@ -278,10 +174,10 @@ export default function SendEmailModal({ onFinished }: { onFinished: () => void 
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          contactIds: [...selected.keys()],
+          contactIds: localRecipients.map((r) => r.id),
           subject,
           message,
-          from,
+          from: composeFrom(),
         }),
         signal: controller.signal,
       });
@@ -328,20 +224,21 @@ export default function SendEmailModal({ onFinished }: { onFinished: () => void 
     setGenerating(true);
     setGenerateError(null);
     try {
-      const firstSelected = selected.values().next().value;
+      const firstRecipient = localRecipients[0];
       const resp = await fetch("/api/email/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           topic: topicInput.trim(),
           model: selectedModel || undefined,
-          contact: firstSelected
+          senderName: senderName.trim() || undefined,
+          contact: firstRecipient
             ? {
-                username: firstSelected.username,
-                name: firstSelected.name,
-                company: firstSelected.company,
-                country: firstSelected.country,
-                bio: firstSelected.bio,
+                username: firstRecipient.username,
+                name: firstRecipient.name,
+                company: firstRecipient.company,
+                country: firstRecipient.country,
+                bio: firstRecipient.bio,
               }
             : null,
         }),
@@ -364,113 +261,39 @@ export default function SendEmailModal({ onFinished }: { onFinished: () => void 
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-2.5">
-        <div className="relative min-w-[160px] flex-1">
-          <Search size={14} className="pointer-events-none absolute top-1/2 left-2.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="h-8 pl-8 text-sm"
-            placeholder="Search username, name, or email"
-            value={qInput}
-            onChange={(e) => setQInput(e.target.value)}
-            disabled={running}
-          />
-        </div>
-        <Input
-          className="h-8 w-[140px] text-sm"
-          placeholder="Country"
-          value={countryInput}
-          onChange={(e) => setCountryInput(e.target.value)}
-          disabled={running}
-        />
-        <div className="flex gap-1">
-          {STATUS_FILTERS.map((f) => (
-            <Button
-              key={f.value || "all"}
-              type="button"
-              size="sm"
-              variant={statusFilter === f.value ? "default" : "outline"}
-              disabled={running}
-              onClick={() => setStatusFilter(f.value)}
-            >
-              {f.label}
-            </Button>
-          ))}
-        </div>
-      </div>
-
       <div className="rounded-lg border">
         <div className="flex items-center justify-between gap-2 border-b bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
-          <label className="flex items-center gap-2">
-            <Checkbox checked={allOnPageSelected} onCheckedChange={toggleAllOnPage} disabled={running || rows.length === 0} />
-            select page
-          </label>
-          <div className="flex items-center gap-2">
-            <span className="tabular-nums">
-              {selected.size} selected{data ? ` / ${data.totalMatching} matching` : ""}
-            </span>
-            <Button type="button" size="xs" variant="outline" disabled={running || !data || data.totalMatching === 0} onClick={selectAllMatching}>
-              Select all matching{data && data.totalMatching > MAX_RECIPIENTS ? ` (first ${MAX_RECIPIENTS})` : ""}
-            </Button>
-            {selected.size > 0 && (
-              <Button type="button" size="xs" variant="ghost" disabled={running} onClick={clearSelection}>
-                Clear
-              </Button>
-            )}
-          </div>
+          <span className="tabular-nums">
+            {localRecipients.length} recipient{localRecipients.length === 1 ? "" : "s"}
+          </span>
         </div>
-
-        <ScrollArea className="h-[220px]">
+        <ScrollArea className="max-h-[180px]">
           <div className="divide-y">
-            {listLoading && (
-              <div className="px-3 py-6 text-center text-sm text-muted-foreground">Loading…</div>
+            {localRecipients.length === 0 && (
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">
+                No recipients left — close this and reselect contacts to send.
+              </div>
             )}
-            {!listLoading && rows.length === 0 && (
-              <div className="px-3 py-6 text-center text-sm text-muted-foreground">No contacts match these filters.</div>
-            )}
-            {!listLoading &&
-              rows.map((r) => {
-                const badge = STATUS_BADGE[r.email_status] ?? STATUS_BADGE.not_sent;
-                return (
-                  <label
-                    key={r.id}
-                    className={cn(
-                      "flex cursor-pointer items-center gap-2.5 px-3 py-2 text-sm hover:bg-muted/40",
-                      running && "pointer-events-none opacity-60"
-                    )}
-                  >
-                    <Checkbox checked={selected.has(r.id)} onCheckedChange={() => toggleOne(r)} disabled={running} />
-                    <ContactAvatar url={r.avatar_url} name={r.name || r.username} />
-                    <span className="font-medium">{r.username}</span>
-                    <span className="min-w-0 flex-1 truncate text-muted-foreground">{r.email}</span>
-                    {r.country && <span className="hidden shrink-0 text-muted-foreground sm:inline">{r.country}</span>}
-                    <Badge variant="outline" className={cn("shrink-0 font-normal", badge.className)}>
-                      {badge.label}
-                    </Badge>
-                  </label>
-                );
-              })}
+            {localRecipients.map((r) => (
+              <div key={r.id} className="flex items-center gap-2.5 px-3 py-2 text-sm">
+                <ContactAvatar url={r.avatar_url} name={r.name || r.username} />
+                <span className="font-medium">{r.username}</span>
+                <span className="min-w-0 flex-1 truncate text-muted-foreground">{r.email}</span>
+                {r.country && <span className="hidden shrink-0 text-muted-foreground sm:inline">{r.country}</span>}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-xs"
+                  title="Remove from this send"
+                  disabled={running}
+                  onClick={() => removeRecipient(r.id)}
+                >
+                  <X size={13} />
+                </Button>
+              </div>
+            ))}
           </div>
         </ScrollArea>
-
-        {data && data.totalPages > 1 && (
-          <div className="flex items-center justify-center gap-3 border-t px-3 py-1.5 text-xs text-muted-foreground">
-            <Button type="button" variant="ghost" size="icon-xs" disabled={running || page <= 1} onClick={() => setPage((p) => p - 1)}>
-              <ChevronLeft size={13} />
-            </Button>
-            <span>
-              Page {data.page} of {data.totalPages}
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-xs"
-              disabled={running || page >= data.totalPages}
-              onClick={() => setPage((p) => p + 1)}
-            >
-              <ChevronRight size={13} />
-            </Button>
-          </div>
-        )}
       </div>
 
       <form onSubmit={handleSend} className="flex flex-col gap-3">
@@ -511,34 +334,46 @@ export default function SendEmailModal({ onFinished }: { onFinished: () => void 
             </Button>
           </div>
           <p className="text-xs text-muted-foreground">
-            {selected.size > 0
-              ? `Personalizes using ${[...selected.values()][0].username}'s profile, then fills in the subject and message below.`
-              : "Select a contact above to personalize the draft, or generate a generic one."}
+            {localRecipients.length > 0
+              ? `Personalizes using ${localRecipients[0].username}'s profile, then fills in the subject and message below.`
+              : "Generates a generic draft — no recipients left to personalize with."}
           </p>
           {modelsError && <p className="text-xs text-muted-foreground">Model list unavailable: {modelsError}</p>}
           {generateError && <p className="text-xs text-destructive">{generateError}</p>}
         </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="send-from">Sender email</Label>
-          <Input
-            id="send-from"
-            value={from}
-            onChange={(e) => {
-              setFrom(e.target.value);
-              setPrefilledFrom(false);
-            }}
-            placeholder={domainChecked && !domain ? "you@yourdomain.com" : "outreach@yourdomain.com"}
-            disabled={running}
-            required
-          />
-          <p className="text-xs text-muted-foreground">
-            {!domainChecked && "Checking Resend for a verified sending domain…"}
-            {domainChecked && domain && prefilledFrom && `Using your verified Resend domain (${domain}) — edit freely.`}
-            {domainChecked && domain && !prefilledFrom && `Verified domain on file: ${domain}.`}
-            {domainChecked && !domain &&
-              "No verified domain found on this Resend account — enter the full sender address yourself."}
-          </p>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="send-sender-name">Sender name</Label>
+            <Input
+              id="send-sender-name"
+              value={senderName}
+              onChange={(e) => setSenderName(e.target.value)}
+              placeholder="e.g. Alex Rivera"
+              disabled={running}
+            />
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="send-from">Sender email</Label>
+            <Input
+              id="send-from"
+              value={from}
+              onChange={(e) => {
+                setFrom(e.target.value);
+                setPrefilledFrom(false);
+              }}
+              placeholder={domainChecked && !domain ? "you@yourdomain.com" : "outreach@yourdomain.com"}
+              disabled={running}
+              required
+            />
+          </div>
         </div>
+        <p className="-mt-1.5 text-xs text-muted-foreground">
+          {!domainChecked && "Checking Resend for a verified sending domain…"}
+          {domainChecked && domain && prefilledFrom && `Using your verified Resend domain (${domain}) — edit freely.`}
+          {domainChecked && domain && !prefilledFrom && `Verified domain on file: ${domain}.`}
+          {domainChecked && !domain &&
+            "No verified domain found on this Resend account — enter the full sender address yourself."}
+        </p>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="send-subject">Subject</Label>
           <Input id="send-subject" value={subject} onChange={(e) => setSubject(e.target.value)} disabled={running} required />
@@ -560,7 +395,7 @@ export default function SendEmailModal({ onFinished }: { onFinished: () => void 
           <div className="flex items-center gap-3">
             <Progress value={progressPct} className="flex-1" />
             <span className="whitespace-nowrap text-xs tabular-nums text-muted-foreground">
-              {progress.sent + progress.failed} / {progress.total || selected.size}
+              {progress.sent + progress.failed} / {progress.total || localRecipients.length}
             </span>
           </div>
         )}
@@ -599,14 +434,17 @@ export default function SendEmailModal({ onFinished }: { onFinished: () => void 
               Stop
             </Button>
           )}
-          <Button type="submit" disabled={running || selected.size === 0 || !subject.trim() || !message.trim() || !from.trim()}>
+          <Button
+            type="submit"
+            disabled={running || localRecipients.length === 0 || !subject.trim() || !message.trim() || !from.trim()}
+          >
             {running ? (
               <>
                 <Loader2 className="animate-spin" size={15} /> Sending…
               </>
             ) : (
               <>
-                <Mail size={14} /> Send to {selected.size || ""}
+                <Mail size={14} /> Send to {localRecipients.length || ""}
               </>
             )}
           </Button>

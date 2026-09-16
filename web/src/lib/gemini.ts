@@ -40,6 +40,7 @@ export interface GenerateEmailDraftParams {
   apiKey: string;
   topic: string;
   model?: string;
+  senderName?: string;
   contact?: {
     username: string;
     name?: string | null;
@@ -68,7 +69,7 @@ VOICE AND STYLE
 - Be warm but direct — get to the point in the first sentence or two, not after throat-clearing.
 - Exactly one clear ask or call to action, stated plainly, near the end.
 - Keep it short: 3-6 sentences, roughly 60-120 words, unless the topic genuinely needs more room.
-- Close naturally ("Best," / "Thanks," / "Cheers," — pick what fits the tone) but do NOT invent or sign a sender name; the human sending it adds their own.
+- Close naturally ("Best," / "Thanks," / "Cheers," — pick what fits the tone). If the user turn gives you a sender name, sign off with that exact name on its own line after the closing word. If no sender name is given, end at the closing word with no name — the human sending it adds their own.
 
 PERSONALIZATION
 - If recipient details are provided, weave in exactly ONE specific, relevant detail naturally — don't recite their bio back at them like a summary, and don't force a detail that doesn't actually connect to the topic.
@@ -82,7 +83,7 @@ REALISM AND OUTPUT CONTRACT
 - Respond with ONLY the JSON object matching the given schema — no commentary, no markdown fences around it.`;
 
 export async function generateEmailDraft(params: GenerateEmailDraftParams): Promise<GenerateEmailDraftResult> {
-  const { apiKey, topic, contact, model = GEMINI_DEFAULT_MODEL } = params;
+  const { apiKey, topic, contact, model = GEMINI_DEFAULT_MODEL, senderName } = params;
 
   const contactLines = contact
     ? [
@@ -101,6 +102,8 @@ export async function generateEmailDraft(params: GenerateEmailDraftParams): Prom
     ...contactLines,
     "",
     `What this email is about: ${topic}`,
+    "",
+    senderName ? `Sender's name (sign off with this exact name): ${senderName}` : "No sender name given — leave the sign-off without a name.",
   ].join("\n");
 
   try {

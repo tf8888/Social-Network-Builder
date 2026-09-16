@@ -100,12 +100,12 @@ export default function ContactsDashboard() {
   const [loading, setLoading] = useState(true);
   const [errored, setErrored] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [selected, setSelected] = useState<Map<string, Contact>>(new Map());
   const [modal, setModal] = useState<{ mode: "create" | "edit"; contact: Contact | null } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [noticeDismissed, setNoticeDismissed] = useState(false);
   const [collectOpen, setCollectOpen] = useState(false);
-  const [sendEmailOpen, setSendEmailOpen] = useState(false);
+  const [sendRecipients, setSendRecipients] = useState<Contact[] | null>(null);
 
   // Reset to page 1 whenever the filter changes, adjusted during render
   // rather than in an effect (React's documented pattern for "resetting
@@ -115,7 +115,7 @@ export default function ContactsDashboard() {
   if (filterKey !== lastFilterKey) {
     setLastFilterKey(filterKey);
     setPage(1);
-    setSelected(new Set());
+    setSelected(new Map());
   }
 
   const isInitialLoad = loading && data === null;
@@ -166,22 +166,22 @@ export default function ContactsDashboard() {
   const rows = data?.rows ?? [];
   const allOnPageSelected = rows.length > 0 && rows.every((r) => selected.has(r.id));
 
-  function toggleOne(id: string) {
+  function toggleOne(contact: Contact) {
     setSelected((s) => {
-      const next = new Set(s);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      const next = new Map(s);
+      if (next.has(contact.id)) next.delete(contact.id);
+      else next.set(contact.id, contact);
       return next;
     });
   }
 
   function toggleAllOnPage() {
     setSelected((s) => {
-      const next = new Set(s);
+      const next = new Map(s);
       if (allOnPageSelected) {
         rows.forEach((r) => next.delete(r.id));
       } else {
-        rows.forEach((r) => next.add(r.id));
+        rows.forEach((r) => next.set(r.id, r));
       }
       return next;
     });
@@ -192,7 +192,7 @@ export default function ContactsDashboard() {
     try {
       await Promise.all(ids.map((id) => fetch(`/api/contacts/${id}`, { method: "DELETE" })));
       setSelected((s) => {
-        const next = new Set(s);
+        const next = new Map(s);
         ids.forEach((id) => next.delete(id));
         return next;
       });
@@ -210,7 +210,7 @@ export default function ContactsDashboard() {
   function handleDeleteSelected() {
     if (selected.size === 0) return;
     if (!window.confirm(`Delete ${selected.size} selected contact(s)? This can't be undone.`)) return;
-    deleteIds([...selected]);
+    deleteIds([...selected.keys()]);
   }
 
   return (
@@ -306,9 +306,11 @@ export default function ContactsDashboard() {
               <Trash2 size={13} /> Delete selected ({selected.size})
             </Button>
           )}
-          <Button type="button" variant="outline" size="sm" onClick={() => setSendEmailOpen(true)}>
-            <Mail size={14} /> Send email
-          </Button>
+          {selected.size > 0 && (
+            <Button type="button" variant="outline" size="sm" onClick={() => setSendRecipients([...selected.values()])}>
+              <Mail size={14} /> Send email ({selected.size})
+            </Button>
+          )}
           <Button type="button" variant="outline" size="sm" onClick={() => setCollectOpen(true)}>
             <Download size={14} /> Collect
           </Button>
@@ -366,7 +368,7 @@ export default function ContactsDashboard() {
                     <TableCell>
                       <Checkbox
                         checked={selected.has(r.id)}
-                        onCheckedChange={() => toggleOne(r.id)}
+                        onCheckedChange={() => toggleOne(r)}
                         aria-label={`Select ${r.username}`}
                       />
                     </TableCell>
@@ -420,6 +422,16 @@ export default function ContactsDashboard() {
                     <TableCell className="text-muted-foreground">{r.collected_at?.slice(0, 10) || "—"}</TableCell>
                     <TableCell>
                       <div className="flex gap-1 whitespace-nowrap">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          title="Send email"
+                          disabled={!r.email}
+                          onClick={() => setSendRecipients([r])}
+                        >
+                          <Mail size={13} />
+                        </Button>
                         <Button
                           type="button"
                           variant="ghost"
@@ -481,17 +493,27 @@ export default function ContactsDashboard() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={sendEmailOpen} onOpenChange={setSendEmailOpen}>
-        <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Send email</DialogTitle>
-            <DialogDescription>
-              Filter contacts by country or email status, pick recipients, then send via Resend.
-            </DialogDescription>
-          </DialogHeader>
-          <SendEmailModal onFinished={refresh} />
-        </DialogContent>
-      </Dialog>
+      {sendRecipients && (
+        <Dialog open onOpenChange={(open) => !open && setSendRecipients(null)}>
+          <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Send email</DialogTitle>
+              <DialogDescription>Compose a message and send it via Resend.</DialogDescription>
+            </DialogHeader>
+            <SendEmailModal
+              recipients={sendRecipients}
+              onFinished={() => {
+                refresh();
+                setSelected((s) => {
+                  const next = new Map(s);
+                  sendRecipients.forEach((r) => next.delete(r.id));
+                  return next;
+                });
+              }}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </Card>
   );
 }

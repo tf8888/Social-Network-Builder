@@ -8,6 +8,7 @@ interface GenerateBody {
   topic?: unknown;
   contact?: unknown;
   model?: unknown;
+  senderName?: unknown;
 }
 
 export async function POST(req: NextRequest) {
@@ -18,13 +19,16 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "invalid JSON body" }, { status: 400 });
   }
 
-  const { topic, contact, model } = body;
+  const { topic, contact, model, senderName } = body;
 
   if (typeof topic !== "string" || !topic.trim()) {
     return Response.json({ error: "topic is required" }, { status: 400 });
   }
   if (model !== undefined && (typeof model !== "string" || !model.trim())) {
     return Response.json({ error: "model must be a non-empty string" }, { status: 400 });
+  }
+  if (senderName !== undefined && typeof senderName !== "string") {
+    return Response.json({ error: "senderName must be a string" }, { status: 400 });
   }
 
   const apiKey = getGeminiApiKey();
@@ -55,6 +59,7 @@ export async function POST(req: NextRequest) {
     topic: topic.trim(),
     contact: normalizedContact,
     model: typeof model === "string" ? model.trim() : undefined,
+    senderName: typeof senderName === "string" && senderName.trim() ? senderName.trim() : undefined,
   });
 
   if (result.error) {
