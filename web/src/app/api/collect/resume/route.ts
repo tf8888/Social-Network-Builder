@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getServerConfig } from "@/lib/config";
+import { getServerConfig, requireGithubToken } from "@/lib/config";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { GithubClient } from "@/lib/github";
 import { getJob, markRunning } from "@/lib/jobs";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 120;
 
 export async function POST(req: NextRequest) {
-  let body: { jobId?: string };
+  let body: { jobId?: string; githubToken?: string };
   try {
     body = await req.json();
   } catch {
@@ -20,11 +20,17 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "unknown jobId — it may have expired; start a new run" }, { status: 404 });
   }
 
-  let config;
   try {
-    config = getServerConfig();
+    getServerConfig();
   } catch (err) {
     return Response.json({ error: (err as Error).message }, { status: 500 });
+  }
+
+  let githubToken;
+  try {
+    githubToken = requireGithubToken(body.githubToken);
+  } catch (err) {
+    return Response.json({ error: (err as Error).message }, { status: 400 });
   }
 
   const supabase = getSupabaseServerClient();
@@ -41,7 +47,7 @@ export async function POST(req: NextRequest) {
   job.stopRequested = false;
 
   const encoder = new TextEncoder();
-  const gh = new GithubClient(config.githubToken, 2500, 1000);
+  const gh = new GithubClient(githubToken, 2500, 1000);
 
   const stream = new ReadableStream({
     async start(controller) {

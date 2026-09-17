@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { getServerConfig, clampMaxUsers } from "@/lib/config";
+import { getServerConfig, clampMaxUsers, requireGithubToken } from "@/lib/config";
 import { getSupabaseServerClient } from "@/lib/supabase";
 import { GithubClient } from "@/lib/github";
 import { createJob } from "@/lib/jobs";
@@ -16,6 +16,7 @@ export const maxDuration = 120;
 interface CollectRequestBody {
   keywords?: string[];
   maxUsers?: number;
+  githubToken?: string;
 }
 
 export async function POST(req: NextRequest) {
@@ -26,11 +27,17 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "invalid JSON body" }, { status: 400 });
   }
 
-  let config;
   try {
-    config = getServerConfig();
+    getServerConfig();
   } catch (err) {
     return Response.json({ error: (err as Error).message }, { status: 500 });
+  }
+
+  let githubToken;
+  try {
+    githubToken = requireGithubToken(body.githubToken);
+  } catch (err) {
+    return Response.json({ error: (err as Error).message }, { status: 400 });
   }
 
   const keywords = (body.keywords ?? []).map((k) => k.trim()).filter(Boolean);
@@ -41,7 +48,7 @@ export async function POST(req: NextRequest) {
   const cap = clampMaxUsers(body.maxUsers ?? 10);
   const encoder = new TextEncoder();
   const supabase = getSupabaseServerClient();
-  const gh = new GithubClient(config.githubToken, 2500, 1000);
+  const gh = new GithubClient(githubToken, 2500, 1000);
 
   let job;
   try {

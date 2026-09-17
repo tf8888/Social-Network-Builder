@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import type { CollectEvent } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Slider } from "@/components/ui/slider";
@@ -28,6 +29,7 @@ const LOG_COLOR: Record<LogEntry["kind"], string> = {
 };
 
 export default function CollectPanel({ onFinished }: { onFinished: () => void }) {
+  const [githubToken, setGithubToken] = useState("");
   const [keywords, setKeywords] = useState("");
   const [maxUsers, setMaxUsers] = useState(10);
   const [status, setStatus] = useState<Status>("idle");
@@ -139,7 +141,7 @@ export default function CollectPanel({ onFinished }: { onFinished: () => void })
       .split("\n")
       .map((k) => k.trim())
       .filter(Boolean);
-    if (keywordList.length === 0 || busyRef.current) return;
+    if (keywordList.length === 0 || !githubToken.trim() || busyRef.current) return;
 
     setLog([]);
     setSummary(null);
@@ -148,7 +150,7 @@ export default function CollectPanel({ onFinished }: { onFinished: () => void })
     const resp = await fetch("/api/collect", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ keywords: keywordList, maxUsers }),
+      body: JSON.stringify({ keywords: keywordList, maxUsers, githubToken: githubToken.trim() }),
     });
     await runStream(resp);
   }
@@ -165,11 +167,11 @@ export default function CollectPanel({ onFinished }: { onFinished: () => void })
   }
 
   async function handleResume() {
-    if (!jobId || busyRef.current) return;
+    if (!jobId || !githubToken.trim() || busyRef.current) return;
     const resp = await fetch("/api/collect/resume", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ jobId }),
+      body: JSON.stringify({ jobId, githubToken: githubToken.trim() }),
     });
     await runStream(resp);
   }
@@ -183,12 +185,31 @@ export default function CollectPanel({ onFinished }: { onFinished: () => void })
 
   const progressPct = cap > 0 ? Math.min(100, Math.round((stored / cap) * 100)) : 0;
   const running = status === "running";
-  const canResume = status === "stopped" && Boolean(jobId);
-  const canRestart = Boolean(jobId);
+  const canResume = status === "stopped" && Boolean(jobId) && Boolean(githubToken.trim());
+  const canRestart = Boolean(jobId) && Boolean(githubToken.trim());
 
   return (
     <div className="flex flex-col gap-4">
       <form onSubmit={handleStart} className="flex flex-col gap-3">
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="collect-github-token">
+            GitHub token{" "}
+            <span className="font-normal text-muted-foreground">
+              — your own personal access token, used only for this run
+            </span>
+          </Label>
+          <Input
+            id="collect-github-token"
+            type="password"
+            autoComplete="off"
+            value={githubToken}
+            onChange={(e) => setGithubToken(e.target.value)}
+            placeholder="ghp_…"
+            disabled={running}
+            required
+          />
+        </div>
+
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="collect-keywords">
             Search keywords{" "}
@@ -241,7 +262,7 @@ export default function CollectPanel({ onFinished }: { onFinished: () => void })
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Button type="submit" disabled={running || !keywords.trim()}>
+            <Button type="submit" disabled={running || !keywords.trim() || !githubToken.trim()}>
               {running ? (
                 <>
                   <Loader2 className="animate-spin" size={15} /> Running…

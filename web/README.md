@@ -36,11 +36,15 @@ cp .env.local.example .env.local
 ```
 
 Fill in `.env.local`:
-- `GITHUB_TOKEN` — same token as the CLI
 - `SUPABASE_URL`, `SUPABASE_SERVICE_KEY` — service_role key, not the anon/publishable key
 - `RESEND_API_KEY` — optional, only needed for the "Send email" feature
 - `GEMINI_API_KEY` — optional, only needed for the "Generate with AI" draft button
 - `ACCESS_CODE` — optional locally, required before deploying publicly (see above)
+
+There's no `GITHUB_TOKEN` env var — each collect run needs a GitHub personal
+access token pasted into the form in the UI. It's used only for that run and
+is never persisted server-side (not in the `collect_jobs` row, not in logs),
+so Resume/Restart also require re-entering it if the page was reloaded.
 
 The `github_contacts` and `collect_jobs` tables must already exist (see the
 root README / `../supabase/migrations/`) — run all migrations through
@@ -66,9 +70,10 @@ deploy with the Vercel CLI, run `vercel` from inside `web/` and it infers
 this automatically.)
 
 1. **Set environment variables** (Project Settings → Environment Variables):
-   `GITHUB_TOKEN`, `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, optionally
-   `RESEND_API_KEY` and `GEMINI_API_KEY`, and **`ACCESS_CODE`** — without it
-   the deployed URL has no protection at all (see above).
+   `SUPABASE_URL`, `SUPABASE_SERVICE_KEY`, optionally `RESEND_API_KEY` and
+   `GEMINI_API_KEY`, and **`ACCESS_CODE`** — without it the deployed URL has
+   no protection at all (see above). No `GITHUB_TOKEN` — users paste their
+   own in the collect form.
 2. **Run all Supabase migrations**, including `0006_create_collect_jobs.sql`
    — collect-run state (for Stop/Resume) is persisted in Supabase rather
    than in server memory specifically so it survives across serverless
